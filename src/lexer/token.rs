@@ -1,8 +1,10 @@
+use std::{error, fmt, ops};
 use logos::Logos;
 
 #[derive(Logos, Debug, PartialEq)]
 #[logos(skip r"[ \t\n\f\r]+")]
 #[logos(skip(r"//[^\n]*", allow_greedy = true))]
+#[logos(error = LexError)]
 pub enum Token {
     // Keywords
     #[token("alfabeto", ignore(case))]
@@ -45,12 +47,56 @@ pub enum Token {
     Ident(String),
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub struct LexError {
+    pub span: ops::Range<usize>,
+    pub text: String,
+    pub line: usize,
+    pub column: usize,
+    pub source_line: String,
+    pub file_path: String,
+}
+
+impl Default for LexError {
+    fn default() -> Self {
+        Self {
+            span: 0..0,
+            text: String::new(),
+            line: 0,
+            column: 0,
+            source_line: String::new(),
+            file_path: String::new(),
+        }
+    }
+}
+
+impl fmt::Display for LexError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let line_num = self.line.to_string();
+        let gutter = " ".repeat(line_num.len());
+        let padding = " ".repeat(self.column - 1);
+        let carets = "^".repeat(self.text.len().max(1));
+        write!(
+            f,
+            "\x1b[1;31merror\x1b[0m: token inválido `{}`\n \x1b[1;34m-->\x1b[0m {}:{}:{}\n  \x1b[1;34m{} |\x1b[0m\n  \x1b[1;34m{} |\x1b[0m {}\n  \x1b[1;34m{} |\x1b[0m {}\x1b[1;31m{}\x1b[0m",
+            self.text,
+            self.file_path, self.line, self.column,
+            gutter,
+            line_num, self.source_line,
+            gutter, padding, carets,
+        )
+    }
+}
+
+impl error::Error for LexError {}
+
 #[cfg(test)]
 mod tests {
+    use crate::lexer::tokenize;
     use super::*;
 
     fn lex(input: &str) -> Vec<Token> {
-        Token::lexer(input).map(|t| t.unwrap()).collect()
+        tokenize(input, "<test>").expect("lexing failed")
     }
 
     #[test]
@@ -151,8 +197,8 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn invalid_token() {
-        lex("alfabeto %");
+        let err = tokenize("alfabeto %", "<test>").unwrap_err();
+        assert_eq!(err.span, 9..10);
     }
 }

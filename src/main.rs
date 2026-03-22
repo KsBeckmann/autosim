@@ -1,20 +1,23 @@
-use std::fs;
-use anyhow::anyhow;
+use std::{fs, process};
 use clap::Parser;
-use logos::Logos;
 
 use autosim::cli::Args;
-use autosim::lexer::Token;
 
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
-    let file_content = fs::read_to_string(args.path)?;
+    let path_str = args.path.display().to_string();
+    let file_content = fs::read_to_string(&args.path)?;
 
-    let lex = Token::lexer(&file_content);
+    let tokens = match autosim::lexer::tokenize(&file_content, &path_str) {
+        Ok(tokens) => tokens,
+        Err(e) => {
+            eprintln!("{e}");
+            process::exit(1);
+        }
+    };
 
-    for token in lex {
-        let token = token.map_err(|_| anyhow!("Erro ao processar token"))?;
+    for token in &tokens {
         println!("{:?}", token);
     }
 
