@@ -1,5 +1,5 @@
-use std::{fs, process};
 use clap::Parser;
+use std::{fs, process};
 
 use autosim::cli::Args;
 
@@ -29,7 +29,18 @@ fn main() -> anyhow::Result<()> {
         }
     };
 
+    let table = match autosim::sema::analyse(&program, &spans) {
+        Ok(t) => t,
+        Err(errors) => {
+            for err in &errors {
+                err.report(&path_str, &file_content);
+            }
+            process::exit(1);
+        }
+    };
+
     println!("{:#?}", program);
+    println!("{:#?}", table);
 
     Ok(())
 }

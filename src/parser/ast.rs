@@ -1,6 +1,14 @@
+use std::ops::Range;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Spanned<T> {
+    pub value: T,
+    pub span: Range<usize>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
-    pub alphabet: Vec<char>,
+    pub alphabet: Vec<Spanned<char>>,
     pub automata: Vec<Automaton>,
     pub simulations: Vec<Simulation>,
 }
@@ -14,10 +22,10 @@ pub enum AutomatonKind {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Automaton {
     pub kind: AutomatonKind,
-    pub name: String,
-    pub states: Vec<String>,
-    pub initial: String,
-    pub finals: Vec<String>,
+    pub name: Spanned<String>,
+    pub states: Vec<Spanned<String>>,
+    pub initial: Spanned<String>,
+    pub finals: Vec<Spanned<String>>,
     pub transitions: Vec<Transition>,
 }
 
@@ -29,13 +37,13 @@ pub enum Symbol {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Transition {
-    pub from: String,
-    pub to: String,
-    pub symbol: Symbol,
+    pub from: Spanned<String>,
+    pub to: Spanned<String>,
+    pub symbol: Spanned<Symbol>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Simulation {
-    pub automaton: String,
+    pub automaton: Spanned<String>,
     pub input: String,
 }

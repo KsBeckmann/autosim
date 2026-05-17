@@ -1,5 +1,5 @@
 use autosim::lexer::tokenize_spanned;
-use autosim::parser::{parse, AutomatonKind, ParseError, Program, Simulation, Symbol, Transition};
+use autosim::parser::{parse, AutomatonKind, ParseError, Program, Spanned, Symbol};
 
 fn parse_ok(input: &str) -> Program {
     let spanned = tokenize_spanned(input).expect("lex falhou");
@@ -13,10 +13,18 @@ fn parse_err(input: &str) -> Vec<ParseError> {
     parse(&tokens, &spans).expect_err("esperava erro de parse")
 }
 
+fn names(xs: &[Spanned<String>]) -> Vec<&str> {
+    xs.iter().map(|s| s.value.as_str()).collect()
+}
+
+fn chars(xs: &[Spanned<char>]) -> Vec<char> {
+    xs.iter().map(|s| s.value).collect()
+}
+
 #[test]
 fn alphabet_only() {
     let program = parse_ok("alfabeto { 'a', 'b' }");
-    assert_eq!(program.alphabet, vec!['a', 'b']);
+    assert_eq!(chars(&program.alphabet), vec!['a', 'b']);
     assert!(program.automata.is_empty());
     assert!(program.simulations.is_empty());
 }
@@ -30,7 +38,7 @@ fn empty_alphabet() {
 #[test]
 fn alphabet_trailing_comma() {
     let program = parse_ok("alfabeto { 'a', 'b', }");
-    assert_eq!(program.alphabet, vec!['a', 'b']);
+    assert_eq!(chars(&program.alphabet), vec!['a', 'b']);
 }
 
 #[test]
@@ -51,22 +59,23 @@ fn full_dfa() {
     "#;
 
     let program = parse_ok(input);
-    assert_eq!(program.alphabet, vec!['a', 'b']);
+    assert_eq!(chars(&program.alphabet), vec!['a', 'b']);
     assert_eq!(program.automata.len(), 1);
 
     let automaton = &program.automata[0];
     assert_eq!(automaton.kind, AutomatonKind::Dfa);
-    assert_eq!(automaton.name, "exemplo");
-    assert_eq!(automaton.states, vec!["q0", "q1"]);
-    assert_eq!(automaton.initial, "q0");
-    assert_eq!(automaton.finals, vec!["q1"]);
-    assert_eq!(
-        automaton.transitions,
-        vec![
-            Transition { from: "q0".into(), to: "q1".into(), symbol: Symbol::Char('a') },
-            Transition { from: "q1".into(), to: "q1".into(), symbol: Symbol::Char('b') },
-        ]
-    );
+    assert_eq!(automaton.name.value, "exemplo");
+    assert_eq!(names(&automaton.states), vec!["q0", "q1"]);
+    assert_eq!(automaton.initial.value, "q0");
+    assert_eq!(names(&automaton.finals), vec!["q1"]);
+
+    assert_eq!(automaton.transitions.len(), 2);
+    assert_eq!(automaton.transitions[0].from.value, "q0");
+    assert_eq!(automaton.transitions[0].to.value, "q1");
+    assert_eq!(automaton.transitions[0].symbol.value, Symbol::Char('a'));
+    assert_eq!(automaton.transitions[1].from.value, "q1");
+    assert_eq!(automaton.transitions[1].to.value, "q1");
+    assert_eq!(automaton.transitions[1].symbol.value, Symbol::Char('b'));
 }
 
 #[test]
@@ -89,8 +98,8 @@ fn nfa_with_epsilon() {
     let program = parse_ok(input);
     let automaton = &program.automata[0];
     assert_eq!(automaton.kind, AutomatonKind::Nfa);
-    assert_eq!(automaton.transitions[0].symbol, Symbol::Epsilon);
-    assert_eq!(automaton.transitions[1].symbol, Symbol::Char('a'));
+    assert_eq!(automaton.transitions[0].symbol.value, Symbol::Epsilon);
+    assert_eq!(automaton.transitions[1].symbol.value, Symbol::Char('a'));
 }
 
 #[test]
@@ -131,9 +140,9 @@ fn multiple_automata() {
 
     let program = parse_ok(input);
     assert_eq!(program.automata.len(), 2);
-    assert_eq!(program.automata[0].name, "m1");
+    assert_eq!(program.automata[0].name.value, "m1");
     assert_eq!(program.automata[0].kind, AutomatonKind::Dfa);
-    assert_eq!(program.automata[1].name, "m2");
+    assert_eq!(program.automata[1].name.value, "m2");
     assert_eq!(program.automata[1].kind, AutomatonKind::Nfa);
 }
 
@@ -154,13 +163,11 @@ fn simulations() {
     "#;
 
     let program = parse_ok(input);
-    assert_eq!(
-        program.simulations,
-        vec![
-            Simulation { automaton: "m".into(), input: "aab".into() },
-            Simulation { automaton: "m".into(), input: "".into() },
-        ]
-    );
+    assert_eq!(program.simulations.len(), 2);
+    assert_eq!(program.simulations[0].automaton.value, "m");
+    assert_eq!(program.simulations[0].input, "aab");
+    assert_eq!(program.simulations[1].automaton.value, "m");
+    assert_eq!(program.simulations[1].input, "");
 }
 
 #[test]
@@ -233,7 +240,10 @@ fn err_unterminated_block() {
 
     let errors = parse_err(input);
     assert!(!errors.is_empty());
-    assert!(errors[0].message.contains("arquivo terminou") || errors[0].message.contains("fim do arquivo"));
+    assert!(
+        errors[0].message.contains("arquivo terminou")
+            || errors[0].message.contains("fim do arquivo")
+    );
 }
 
 #[test]
@@ -252,4 +262,13 @@ fn err_invalid_transition_symbol() {
 
     let errors = parse_err(input);
     assert!(!errors.is_empty());
+}
+
+#[test]
+fn spans_are_token_indices() {
+    // O AST armazena spans em INDICE DE TOKEN (não offset de caractere).
+    // A conversão pra char span acontece na fase de sema (ParseError/SemaError).
+    let program = parse_ok("alfabeto { 'a' }");
+    // tokens: [Alphabet=0, BraceOpen=1, CharLiteral=2, BraceClose=3]
+    assert_eq!(program.alphabet[0].span, 2..3);
 }

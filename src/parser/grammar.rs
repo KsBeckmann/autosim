@@ -1,15 +1,26 @@
 use super::ast::*;
 use crate::lexer::Token;
 use chumsky::prelude::*;
+use super::ast::Spanned;
 
 pub(super) type Err<'a> = extra::Err<Rich<'a, Token>>;
 
-pub(super) fn ident<'a>() -> impl Parser<'a, &'a [Token], String, Err<'a>> + Clone {
-    select! { Token::Ident(s) => s }.labelled("nome")
+fn spanned<'a, T: 'a, P>(p: P) -> impl Parser<'a, &'a [Token], Spanned<T>, Err<'a>> + Clone
+where
+    P: Parser<'a, &'a [Token], T, Err<'a>> + Clone,
+{
+    p.map_with(|v, e| Spanned {
+        value: v,
+        span: e.span().into(),
+    })
 }
 
-pub(super) fn char_lit<'a>() -> impl Parser<'a, &'a [Token], char, Err<'a>> + Clone {
-    select! { Token::CharLiteral(c) => c }.labelled("símbolo do alfabeto")
+pub(super) fn ident<'a>() -> impl Parser<'a, &'a [Token], Spanned<String>, Err<'a>> + Clone {
+    spanned(select! { Token::Ident(s) => s }).labelled("nome")
+}
+
+pub(super) fn char_lit<'a>() -> impl Parser<'a, &'a [Token], Spanned<char>, Err<'a>> + Clone {
+    spanned(select! { Token::CharLiteral(c) => c }).labelled("símbolo do alfabeto")
 }
 
 pub(super) fn string_lit<'a>() -> impl Parser<'a, &'a [Token], String, Err<'a>> + Clone {
@@ -25,15 +36,16 @@ pub(super) fn braced_list<'a, T: 'a>(
         .delimited_by(just(Token::BraceOpen), just(Token::BraceClose))
 }
 
-pub(super) fn alphabet_decl<'a>() -> impl Parser<'a, &'a [Token], Vec<char>, Err<'a>> + Clone {
+pub(super) fn alphabet_decl<'a>()
+-> impl Parser<'a, &'a [Token], Vec<Spanned<char>>, Err<'a>> + Clone {
     just(Token::Alphabet).ignore_then(braced_list(char_lit()))
 }
 
 pub(super) fn transition<'a>() -> impl Parser<'a, &'a [Token], Transition, Err<'a>> + Clone {
-    let symbol = choice((
-        char_lit().map(Symbol::Char),
+    let symbol = spanned(choice((
+        select! { Token::CharLiteral(c) => Symbol::Char(c) },
         just(Token::Epsilon).to(Symbol::Epsilon),
-    ));
+    )));
 
     ident()
         .then_ignore(just(Token::Arrow))
@@ -58,11 +70,8 @@ pub(super) fn automaton_decl<'a>() -> impl Parser<'a, &'a [Token], Automaton, Er
     ));
 
     let states_section = just(Token::States).ignore_then(braced_list(ident()));
-
     let initial_section = just(Token::Initial).ignore_then(ident());
-
     let finals_section = just(Token::Final).ignore_then(braced_list(ident()));
-
     let transitions_section = just(Token::Transitions).ignore_then(
         transition()
             .repeated()
