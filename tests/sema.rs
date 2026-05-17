@@ -26,7 +26,7 @@ fn assert_any(errors: &[SemaError], needle: &str) {
 }
 
 #[test]
-fn ok_dfa_completo() {
+fn ok_full_dfa() {
     let input = r#"
         alfabeto { 'a', 'b' }
         automato AFD m {
@@ -53,7 +53,7 @@ fn ok_dfa_completo() {
 }
 
 #[test]
-fn ok_afn_com_epsilon() {
+fn ok_nfa_with_epsilon() {
     let input = r#"
         alfabeto { 'a' }
         automato AFN m {
@@ -71,7 +71,7 @@ fn ok_afn_com_epsilon() {
 }
 
 #[test]
-fn ok_simulacao_valida() {
+fn ok_valid_simulation() {
     let input = r#"
         alfabeto { 'a' }
         automato AFD m {
@@ -87,13 +87,13 @@ fn ok_simulacao_valida() {
 }
 
 #[test]
-fn err_simbolo_duplicado_no_alfabeto() {
+fn err_duplicate_alphabet_symbol() {
     let errors = analyse_err("alfabeto { 'a', 'a' }");
     assert_any(&errors, "duplicado no alfabeto");
 }
 
 #[test]
-fn err_estado_duplicado() {
+fn err_duplicate_state() {
     let input = r#"
         alfabeto { 'a' }
         automato AFD m {
@@ -108,7 +108,7 @@ fn err_estado_duplicado() {
 }
 
 #[test]
-fn err_automato_duplicado() {
+fn err_duplicate_automaton() {
     let input = r#"
         alfabeto { 'a' }
         automato AFD m {
@@ -129,7 +129,7 @@ fn err_automato_duplicado() {
 }
 
 #[test]
-fn err_inicial_nao_declarado() {
+fn err_initial_state_undeclared() {
     let input = r#"
         alfabeto { 'a' }
         automato AFD m {
@@ -144,7 +144,7 @@ fn err_inicial_nao_declarado() {
 }
 
 #[test]
-fn err_final_nao_declarado() {
+fn err_final_state_undeclared() {
     let input = r#"
         alfabeto { 'a' }
         automato AFD m {
@@ -159,7 +159,7 @@ fn err_final_nao_declarado() {
 }
 
 #[test]
-fn err_transicao_origem_desconhecida() {
+fn err_transition_unknown_source() {
     let input = r#"
         alfabeto { 'a' }
         automato AFD m {
@@ -176,7 +176,7 @@ fn err_transicao_origem_desconhecida() {
 }
 
 #[test]
-fn err_simbolo_fora_do_alfabeto() {
+fn err_symbol_outside_alphabet() {
     let input = r#"
         alfabeto { 'a' }
         automato AFD m {
@@ -193,7 +193,7 @@ fn err_simbolo_fora_do_alfabeto() {
 }
 
 #[test]
-fn err_simular_automato_inexistente() {
+fn err_simulate_unknown_automaton() {
     let input = r#"
         alfabeto { 'a' }
         automato AFD m {
@@ -209,7 +209,7 @@ fn err_simular_automato_inexistente() {
 }
 
 #[test]
-fn err_afd_nao_deterministico() {
+fn err_nondeterministic_dfa() {
     let input = r#"
         alfabeto { 'a' }
         automato AFD m {
@@ -227,7 +227,7 @@ fn err_afd_nao_deterministico() {
 }
 
 #[test]
-fn err_afd_com_epsilon() {
+fn err_dfa_with_epsilon() {
     let input = r#"
         alfabeto { 'a' }
         automato AFD m {
@@ -244,7 +244,7 @@ fn err_afd_com_epsilon() {
 }
 
 #[test]
-fn afn_pode_ter_nao_determinismo() {
+fn nfa_allows_nondeterminism() {
     // AFN permite múltiplas saídas com o mesmo símbolo — não deve gerar erro.
     let input = r#"
         alfabeto { 'a' }
@@ -262,7 +262,7 @@ fn afn_pode_ter_nao_determinismo() {
 }
 
 #[test]
-fn varios_erros_acumulados() {
+fn accumulates_multiple_errors() {
     // Garante que sema não para no primeiro erro.
     let input = r#"
         alfabeto { 'a' }
