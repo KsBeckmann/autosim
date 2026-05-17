@@ -9,17 +9,27 @@ fn main() -> anyhow::Result<()> {
     let path_str = args.path.display().to_string();
     let file_content = fs::read_to_string(&args.path)?;
 
-    let tokens = match autosim::lexer::tokenize(&file_content, &path_str) {
-        Ok(tokens) => tokens,
+    let spanned = match autosim::lexer::tokenize_spanned(&file_content) {
+        Ok(v) => v,
         Err(e) => {
-            eprintln!("{e}");
+            e.report(&path_str, &file_content);
             process::exit(1);
         }
     };
 
-    for token in &tokens {
-        println!("{:?}", token);
-    }
+    let (tokens, spans): (Vec<_>, Vec<_>) = spanned.into_iter().unzip();
+
+    let program = match autosim::parser::parse(&tokens, &spans) {
+        Ok(p) => p,
+        Err(errors) => {
+            for err in &errors {
+                err.report(&path_str, &file_content);
+            }
+            process::exit(1);
+        }
+    };
+
+    println!("{:#?}", program);
 
     Ok(())
 }

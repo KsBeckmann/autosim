@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.102"
+ariadne = "0.5"
+chumsky = "0.13.0"
 clap = { version = "4.6.0", features = ["derive"] }
-# https://logos.maciej.codes/getting-started.html
 logos = "0.16.1"

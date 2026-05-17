@@ -1,25 +1,38 @@
+mod error;
 mod token;
 
-use logos::Logos;
-pub use token::{Token, LexError};
+pub use error::LexError;
+pub use token::Token;
 
-pub fn tokenize(input: &str, file_path: &str) -> Result<Vec<Token>, LexError> {
+use logos::Logos;
+use std::ops::Range;
+
+pub fn tokenize(input: &str) -> Result<Vec<Token>, LexError> {
     Token::lexer(input)
         .spanned()
         .map(|(tok, span)| {
             tok.map_err(|mut e| {
-                let line = input[..span.start].matches('\n').count() + 1;
-                let last_newline = input[..span.start].rfind('\n').map_or(0, |p| p + 1);
-                let column = span.start - last_newline + 1;
-                let line_end = input[span.start..].find('\n').map_or(input.len(), |p| span.start + p);
-                e.source_line = input[last_newline..line_end].to_string();
-                e.span = span.clone();
-                e.text = input[span].to_string();
-                e.line = line;
-                e.column = column;
-                e.file_path = file_path.to_string();
+                e.text = input[span.clone()].to_string();
+                e.span = span;
                 e
             })
         })
         .collect()
+}
+
+pub fn tokenize_spanned(input: &str) -> Result<Vec<(Token, Range<usize>)>, LexError> {
+    let mut out = Vec::new();
+    let mut lex = Token::lexer(input);
+    while let Some(result) = lex.next() {
+        match result {
+            Ok(tok) => out.push((tok, lex.span())),
+            Err(_) => {
+                return Err(LexError {
+                    span: lex.span(),
+                    text: lex.slice().to_string(),
+                });
+            }
+        }
+    }
+    Ok(out)
 }

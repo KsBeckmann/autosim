@@ -1,6 +1,6 @@
 // Comentários com barras duplas
 
-alfabeto { a, b }
+alfabeto { 'a', 'b' }
 
 automato AFD exemplo_afd {
     estados { q0, q1, q2 }
