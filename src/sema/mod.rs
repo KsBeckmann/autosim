@@ -157,14 +157,14 @@ fn check_references(
                     "destino desconhecido",
                 ));
             }
-            if let Symbol::Char(c) = t.symbol.value {
-                if !table.alphabet.contains_key(&c) {
-                    errors.push(SemaError::new(
-                        format!("símbolo '{}' não está no alfabeto", c),
-                        to_char_span(&t.symbol.span, token_spans),
-                        "fora do alfabeto declarado",
-                    ));
-                }
+            if let Symbol::Char(c) = t.symbol.value
+                && !table.alphabet.contains_key(&c)
+            {
+                errors.push(SemaError::new(
+                    format!("símbolo '{c}' não está no alfabeto"),
+                    to_char_span(&t.symbol.span, token_spans),
+                    "fora do alfabeto declarado",
+                ));
             }
         }
     }

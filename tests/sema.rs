@@ -1,3 +1,5 @@
+#![allow(clippy::needless_raw_string_hashes)]
+
 use autosim::lexer::tokenize_spanned;
 use autosim::parser::parse;
 use autosim::sema::{SemaError, SymbolTable, analyse};

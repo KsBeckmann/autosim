@@ -1,7 +1,6 @@
-use super::ast::*;
+use super::ast::{Automaton, AutomatonKind, Program, Simulation, Spanned, Symbol, Transition};
 use crate::lexer::Token;
 use chumsky::prelude::*;
-use super::ast::Spanned;
 
 pub(super) type Err<'a> = extra::Err<Rich<'a, Token>>;
 

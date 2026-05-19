@@ -71,9 +71,9 @@ impl fmt::Display for Token {
             Token::BraceClose => write!(f, "}}"),
             Token::Comma => write!(f, ","),
             Token::Arrow => write!(f, "->"),
-            Token::CharLiteral(c) => write!(f, "'{}'", c),
-            Token::StringLiteral(s) => write!(f, "\"{}\"", s),
-            Token::Ident(s) => write!(f, "{}", s),
+            Token::CharLiteral(c) => write!(f, "'{c}'"),
+            Token::StringLiteral(s) => write!(f, "\"{s}\""),
+            Token::Ident(s) => write!(f, "{s}"),
         }
     }
 }

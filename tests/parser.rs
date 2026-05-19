@@ -1,3 +1,5 @@
+#![allow(clippy::needless_raw_string_hashes)]
+
 use autosim::lexer::tokenize_spanned;
 use autosim::parser::{parse, AutomatonKind, ParseError, Program, Spanned, Symbol};
 

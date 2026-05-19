@@ -24,7 +24,7 @@ impl ParseError {
             };
             start..end
         } else {
-            let eof = token_spans.last().map(|r| r.end).unwrap_or(0);
+            let eof = token_spans.last().map_or(0, |r| r.end);
             eof..eof
         };
 
@@ -73,8 +73,8 @@ fn format_reason(reason: &RichReason<'_, Token>) -> String {
                     .join(" ou ")
             };
             match found {
-                Some(f) => format!("esperava {}, encontrou '{}'", exp, &**f),
-                None => format!("esperava {}, mas o arquivo terminou", exp),
+                Some(f) => format!("esperava {exp}, encontrou '{}'", &**f),
+                None => format!("esperava {exp}, mas o arquivo terminou"),
             }
         }
         RichReason::Custom(s) => s.clone(),

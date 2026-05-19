@@ -60,7 +60,7 @@ pub(crate) fn to_char_span(tok_span: &Range<usize>, token_spans: &[Range<usize>]
         };
         start..end
     } else {
-        let eof = token_spans.last().map(|r| r.end).unwrap_or(0);
+        let eof = token_spans.last().map_or(0, |r| r.end);
         eof..eof
     }
 }

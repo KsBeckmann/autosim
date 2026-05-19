@@ -1,3 +1,5 @@
+#![allow(clippy::needless_raw_string_hashes)]
+
 use autosim::lexer::{tokenize, Token};
 
 fn lex(input: &str) -> Vec<Token> {
@@ -57,7 +59,7 @@ fn char_literal() {
 #[test]
 fn string_literal() {
     assert_eq!(lex(r#""ab""#), vec![Token::StringLiteral("ab".to_string())]);
-    assert_eq!(lex(r#""""#), vec![Token::StringLiteral("".to_string())]);
+    assert_eq!(lex(r#""""#), vec![Token::StringLiteral(String::new())]);
 }
 
 #[test]
