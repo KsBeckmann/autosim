@@ -10,6 +10,7 @@ pub struct ParseError {
 }
 
 impl ParseError {
+    #[must_use]
     pub fn from_rich(err: &Rich<'_, Token>, token_spans: &[Range<usize>]) -> Self {
         let tok_span = err.span();
         let start_tok = tok_span.start;
@@ -34,6 +35,11 @@ impl ParseError {
         }
     }
 
+    /// Imprime no stderr um diagnóstico formatado para este erro.
+    ///
+    /// # Panics
+    ///
+    /// Causa panic se o diagnóstico não puder ser escrito no stderr.
     pub fn report(&self, file_path: &str, source: &str) {
         Report::build(ReportKind::Error, (file_path, self.span.clone()))
             .with_message(&self.message)
@@ -72,10 +78,10 @@ fn format_reason(reason: &RichReason<'_, Token>) -> String {
                     .collect::<Vec<_>>()
                     .join(" ou ")
             };
-            match found {
-                Some(f) => format!("esperava {exp}, encontrou '{}'", &**f),
-                None => format!("esperava {exp}, mas o arquivo terminou"),
-            }
+            found.as_ref().map_or_else(
+                || format!("esperava {exp}, mas o arquivo terminou"),
+                |f| format!("esperava {exp}, encontrou '{}'", &**f),
+            )
         }
         RichReason::Custom(s) => s.clone(),
     }

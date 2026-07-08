@@ -18,11 +18,17 @@ impl SemaError {
         }
     }
 
+    #[must_use]
     pub fn with_note(mut self, span: Range<usize>, label: impl Into<String>) -> Self {
         self.secondary.push((span, label.into()));
         self
     }
 
+    /// Imprime no stderr um diagnóstico formatado para este erro.
+    ///
+    /// # Panics
+    ///
+    /// Causa panic se o diagnóstico não puder ser escrito no stderr.
     pub fn report(&self, file_path: &str, source: &str) {
         let (span, label) = &self.primary;
         let mut builder = Report::build(ariadne::ReportKind::Error, (file_path, span.clone()))
@@ -48,7 +54,7 @@ impl SemaError {
     }
 }
 
-pub(crate) fn to_char_span(tok_span: &Range<usize>, token_spans: &[Range<usize>]) -> Range<usize> {
+pub fn to_char_span(tok_span: &Range<usize>, token_spans: &[Range<usize>]) -> Range<usize> {
     let start_tok = tok_span.start;
     let end_tok = tok_span.end;
     if start_tok < token_spans.len() {

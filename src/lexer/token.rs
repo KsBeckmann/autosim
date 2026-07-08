@@ -2,7 +2,7 @@ use super::error::LexError;
 use logos::Logos;
 use std::fmt;
 
-#[derive(Logos, Debug, PartialEq, Clone)]
+#[derive(Logos, Debug, PartialEq, Eq, Clone)]
 #[logos(skip r"[ \t\n\f\r]+")]
 #[logos(skip(r"//[^\n]*", allow_greedy = true))]
 #[logos(error = LexError)]
@@ -56,24 +56,24 @@ pub enum Token {
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Token::Alphabet => write!(f, "alfabeto"),
-            Token::Automaton => write!(f, "automato"),
-            Token::DFA => write!(f, "AFD"),
-            Token::NFA => write!(f, "AFN"),
-            Token::Epsilon => write!(f, "epsilon"),
-            Token::States => write!(f, "estados"),
-            Token::Initial => write!(f, "inicial"),
-            Token::Final => write!(f, "finais"),
-            Token::Transitions => write!(f, "transicoes"),
-            Token::Simulate => write!(f, "simular"),
-            Token::With => write!(f, "com"),
-            Token::BraceOpen => write!(f, "{{"),
-            Token::BraceClose => write!(f, "}}"),
-            Token::Comma => write!(f, ","),
-            Token::Arrow => write!(f, "->"),
-            Token::CharLiteral(c) => write!(f, "'{c}'"),
-            Token::StringLiteral(s) => write!(f, "\"{s}\""),
-            Token::Ident(s) => write!(f, "{s}"),
+            Self::Alphabet => write!(f, "alfabeto"),
+            Self::Automaton => write!(f, "automato"),
+            Self::DFA => write!(f, "AFD"),
+            Self::NFA => write!(f, "AFN"),
+            Self::Epsilon => write!(f, "epsilon"),
+            Self::States => write!(f, "estados"),
+            Self::Initial => write!(f, "inicial"),
+            Self::Final => write!(f, "finais"),
+            Self::Transitions => write!(f, "transicoes"),
+            Self::Simulate => write!(f, "simular"),
+            Self::With => write!(f, "com"),
+            Self::BraceOpen => write!(f, "{{"),
+            Self::BraceClose => write!(f, "}}"),
+            Self::Comma => write!(f, ","),
+            Self::Arrow => write!(f, "->"),
+            Self::CharLiteral(c) => write!(f, "'{c}'"),
+            Self::StringLiteral(s) => write!(f, "\"{s}\""),
+            Self::Ident(s) => write!(f, "{s}"),
         }
     }
 }

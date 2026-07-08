@@ -42,6 +42,7 @@ pub struct Simulator {
 }
 
 impl Simulator {
+    #[must_use]
     pub fn new(automaton: Automaton, input: &str) -> Self {
         let initial = BTreeSet::from([automaton.initial.value.clone()]);
         let history = vec![Configuration {
@@ -56,20 +57,30 @@ impl Simulator {
         }
     }
 
-    pub fn automaton(&self) -> &Automaton {
+    #[must_use]
+    pub const fn automaton(&self) -> &Automaton {
         &self.automaton
     }
 
+    #[must_use]
     pub fn input(&self) -> &[char] {
         &self.input
     }
 
+    /// Retorna a configuração atual do simulador.
+    ///
+    /// # Panics
+    ///
+    /// Causa panic se o histórico estiver vazio, o que nunca acontece porque a
+    /// configuração inicial está sempre presente.
+    #[must_use]
     pub fn config(&self) -> &Configuration {
         self.history
             .last()
             .expect("histórico do simulador nunca está vazio")
     }
 
+    #[must_use]
     pub fn prev_config(&self) -> Option<&Configuration> {
         if self.history.len() >= 2 {
             Some(&self.history[self.history.len() - 2])
@@ -78,14 +89,17 @@ impl Simulator {
         }
     }
 
+    #[must_use]
     pub fn history(&self) -> &[Configuration] {
         &self.history
     }
 
-    pub fn step_count(&self) -> usize {
+    #[must_use]
+    pub const fn step_count(&self) -> usize {
         self.history.len() - 1
     }
 
+    #[must_use]
     pub fn next_step(&self) -> NextStep {
         let cfg = self.config();
         if cfg.current.is_empty() {
@@ -112,6 +126,7 @@ impl Simulator {
         }
     }
 
+    #[must_use]
     pub fn status(&self) -> Status {
         match self.next_step() {
             NextStep::Done => {
@@ -171,6 +186,12 @@ impl Simulator {
         true
     }
 
+    /// Reinicia o simulador para a configuração inicial.
+    ///
+    /// # Panics
+    ///
+    /// Causa panic se o histórico estiver vazio, o que nunca acontece porque a
+    /// configuração inicial está sempre presente.
     pub fn reset(&mut self) {
         let first = self
             .history

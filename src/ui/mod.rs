@@ -1,3 +1,8 @@
+// As coordenadas de desenho derivam de contagens pequenas (número de estados,
+// caracteres da entrada), então a conversão de `usize` para `f32` nunca perde
+// precisão na prática.
+#![allow(clippy::cast_precision_loss)]
+
 use std::collections::HashMap;
 use std::f32::consts::PI;
 use std::time::Duration;
@@ -33,6 +38,12 @@ pub struct State {
 }
 
 impl State {
+    /// Constrói o estado da interface para o programa fornecido.
+    ///
+    /// # Panics
+    ///
+    /// Causa panic se o programa não contém nenhuma simulação.
+    #[must_use]
     pub fn new(program: Program) -> Self {
         let choices: Vec<SimChoice> = program
             .simulations
@@ -121,6 +132,7 @@ pub fn subscription(state: &State) -> Subscription<Message> {
     }
 }
 
+#[must_use]
 pub fn view(state: &State) -> Element<'_, Message> {
     let canvas_view: Canvas<&State, Message, Theme, Renderer> =
         canvas(state).width(Fill).height(Fill);
@@ -348,16 +360,18 @@ fn draw_transitions(
         let any_active = entries.iter().any(|(_, a)| *a);
         let labels: Vec<&str> = entries.iter().map(|(s, _)| s.as_str()).collect();
         let label = labels.join(",");
-        let color = if any_active { active_color } else { normal_color };
-        let width = if any_active { 3.0 } else { 1.5 };
-        let label_color = if any_active {
-            Color::WHITE
-        } else {
-            Color::from_rgb(0.7, 0.7, 0.7)
+        let style = EdgeStyle {
+            color: if any_active { active_color } else { normal_color },
+            width: if any_active { 3.0 } else { 1.5 },
+            label_color: if any_active {
+                Color::WHITE
+            } else {
+                Color::from_rgb(0.7, 0.7, 0.7)
+            },
         };
 
         if from == to {
-            draw_self_loop(frame, positions[*from], state_radius, &label, color, width, label_color);
+            draw_self_loop(frame, positions[*from], state_radius, &label, style);
         } else {
             let has_reverse = grouped.contains_key(&(*to, *from));
             let curve_side: f32 = if has_reverse {
@@ -371,13 +385,18 @@ fn draw_transitions(
                 positions[*to],
                 state_radius,
                 &label,
-                color,
-                width,
-                label_color,
+                style,
                 curve_side,
             );
         }
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct EdgeStyle {
+    color: Color,
+    width: f32,
+    label_color: Color,
 }
 
 fn draw_curved_arrow(
@@ -386,14 +405,17 @@ fn draw_curved_arrow(
     to: Point,
     state_radius: f32,
     label: &str,
-    color: Color,
-    width: f32,
-    label_color: Color,
+    style: EdgeStyle,
     side: f32,
 ) {
+    let EdgeStyle {
+        color,
+        width,
+        label_color,
+    } = style;
     let dx = to.x - from.x;
     let dy = to.y - from.y;
-    let dist = (dx * dx + dy * dy).sqrt().max(1.0);
+    let dist = dx.hypot(dy).max(1.0);
     let nx = dx / dist;
     let ny = dy / dist;
 
@@ -452,10 +474,13 @@ fn draw_self_loop(
     pos: Point,
     state_radius: f32,
     label: &str,
-    color: Color,
-    width: f32,
-    label_color: Color,
+    style: EdgeStyle,
 ) {
+    let EdgeStyle {
+        color,
+        width,
+        label_color,
+    } = style;
     let loop_h = 45.0;
     let dir = -1.0;
 
@@ -604,8 +629,8 @@ fn draw_input_string(frame: &mut canvas::Frame, simulator: &Simulator, w: f32, h
     };
 
     let cell_w = 25.0;
-    let cells_w = (chars.len().max(1) as f32) * cell_w;
-    let start_x = (w - cells_w) / 2.0;
+    let total_w = (chars.len().max(1) as f32) * cell_w;
+    let start_x = (w - total_w) / 2.0;
     let y = h - 100.0;
 
     let title = canvas::Text {
@@ -631,7 +656,7 @@ fn draw_input_string(frame: &mut canvas::Frame, simulator: &Simulator, w: f32, h
     }
 
     for (i, c) in chars.iter().enumerate() {
-        let x = start_x + (i as f32) * cell_w;
+        let x = (i as f32).mul_add(cell_w, start_x);
         let (bg, fg) = if Some(i) == rejected_at {
             (
                 Color::from_rgb(0.55, 0.15, 0.15),
@@ -696,7 +721,7 @@ fn draw_history(frame: &mut canvas::Frame, simulator: &Simulator, h: f32) {
 
         let entry = canvas::Text {
             content: label,
-            position: Point::new(110.0 + ((i - 1) as f32) * 140.0, y),
+            position: Point::new(((i - 1) as f32).mul_add(140.0, 110.0), y),
             color: Color::from_rgb(0.8, 0.8, 0.8),
             size: iced::Pixels(13.0),
             ..canvas::Text::default()

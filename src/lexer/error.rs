@@ -1,13 +1,18 @@
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use std::{error, fmt, ops};
 
-#[derive(Debug, PartialEq, Clone, Default)]
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct LexError {
     pub span: ops::Range<usize>,
     pub text: String,
 }
 
 impl LexError {
+    /// Imprime no stderr um diagnóstico formatado para este erro.
+    ///
+    /// # Panics
+    ///
+    /// Causa panic se o diagnóstico não puder ser escrito no stderr.
     pub fn report(&self, file_path: &str, source: &str) {
         let span = self.span.clone();
         Report::build(ReportKind::Error, (file_path, span.clone()))

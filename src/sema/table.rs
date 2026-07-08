@@ -18,6 +18,7 @@ pub struct AutomatonEntry {
 }
 
 impl SymbolTable {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             alphabet: HashMap::new(),

@@ -7,6 +7,12 @@ pub use token::Token;
 use logos::Logos;
 use std::ops::Range;
 
+/// Converte a entrada em uma lista de tokens.
+///
+/// # Errors
+///
+/// Retorna um [`LexError`] se a entrada contém uma sequência que não casa com
+/// nenhum token.
 pub fn tokenize(input: &str) -> Result<Vec<Token>, LexError> {
     Token::lexer(input)
         .spanned()
@@ -20,6 +26,12 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>, LexError> {
         .collect()
 }
 
+/// Converte a entrada em tokens, mantendo o intervalo de origem de cada um.
+///
+/// # Errors
+///
+/// Retorna um [`LexError`] se a entrada contém uma sequência que não casa com
+/// nenhum token.
 pub fn tokenize_spanned(input: &str) -> Result<Vec<(Token, Range<usize>)>, LexError> {
     let mut out = Vec::new();
     let mut lex = Token::lexer(input);

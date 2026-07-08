@@ -10,6 +10,13 @@ pub use table::{AutomatonEntry, SymbolTable};
 use crate::parser::{Automaton, AutomatonKind, Program, Symbol};
 use crate::sema::error::to_char_span;
 
+/// Executa a análise semântica do programa, produzindo uma [`SymbolTable`].
+///
+/// # Errors
+///
+/// Retorna uma lista de [`SemaError`] descrevendo cada problema semântico
+/// encontrado, como referências indefinidas ou transições não determinísticas
+/// em um DFA.
 pub fn analyse(
     program: &Program,
     token_spans: &[Range<usize>],
