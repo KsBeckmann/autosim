@@ -10,12 +10,34 @@ use std::time::Duration;
 use iced::mouse;
 use iced::time;
 use iced::widget::{Canvas, button, canvas, column, container, pick_list, row, text};
-use iced::{Color, Element, Fill, Point, Rectangle, Renderer, Size, Subscription, Theme};
+use iced::{
+    Color, Element, Fill, Point, Rectangle, Renderer, Size, Subscription, Theme, Vector,
+};
 
 use crate::parser::{Automaton, AutomatonKind, Program, Symbol};
 use crate::runtime::{LastStep, NextStep, Simulator, Status, Verdict};
 
 const TICK_MS: u64 = 800;
+const MIN_ZOOM: f32 = 0.2;
+const MAX_ZOOM: f32 = 4.0;
+
+/// Câmera do diagrama: deslocamento (pan) e ampliação (zoom) aplicados
+/// apenas ao desenho do autômato, permitindo navegar diagramas maiores
+/// que a janela arrastando com o mouse e rolando a rodinha.
+#[derive(Debug, Clone, Copy)]
+pub struct Camera {
+    pan: Vector,
+    zoom: f32,
+}
+
+impl Default for Camera {
+    fn default() -> Self {
+        Self {
+            pan: Vector::new(0.0, 0.0),
+            zoom: 1.0,
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SimChoice {
@@ -35,6 +57,7 @@ pub struct State {
     selected: SimChoice,
     simulator: Simulator,
     auto: bool,
+    camera: Camera,
 }
 
 impl State {
@@ -67,6 +90,7 @@ impl State {
             selected,
             simulator,
             auto: false,
+            camera: Camera::default(),
         }
     }
 }
@@ -90,6 +114,12 @@ pub enum Message {
     Reset,
     ToggleAuto,
     Tick,
+    /// Arrasto do mouse sobre o canvas: desloca a câmera.
+    Pan(Vector),
+    /// Rolagem da rodinha: amplia/reduz ao redor do cursor.
+    Zoom { factor: f32, anchor: Point },
+    /// Restaura a câmera para a posição inicial.
+    ResetView,
 }
 
 pub fn update(state: &mut State, message: Message) {
@@ -98,6 +128,7 @@ pub fn update(state: &mut State, message: Message) {
             state.simulator = make_simulator(&state.program, choice.index);
             state.selected = choice;
             state.auto = false;
+            state.camera = Camera::default();
         }
         Message::StepForward => {
             state.simulator.step_forward();
@@ -120,6 +151,24 @@ pub fn update(state: &mut State, message: Message) {
             if state.auto && !state.simulator.step_forward() {
                 state.auto = false;
             }
+        }
+        Message::Pan(delta) => {
+            state.camera.pan += delta;
+        }
+        Message::Zoom { factor, anchor } => {
+            let old_zoom = state.camera.zoom;
+            let new_zoom = (old_zoom * factor).clamp(MIN_ZOOM, MAX_ZOOM);
+            // Mantém o ponto do mundo sob o cursor fixo na tela:
+            // screen = pan + zoom * world  =>  pan' = anchor - (zoom'/zoom) * (anchor - pan)
+            let ratio = new_zoom / old_zoom;
+            state.camera.pan = Vector::new(
+                ratio.mul_add(-(anchor.x - state.camera.pan.x), anchor.x),
+                ratio.mul_add(-(anchor.y - state.camera.pan.y), anchor.y),
+            );
+            state.camera.zoom = new_zoom;
+        }
+        Message::ResetView => {
+            state.camera = Camera::default();
         }
     }
 }
@@ -210,29 +259,98 @@ fn build_controls(state: &State) -> Element<'_, Message> {
     };
     let play = button(play_label).on_press(Message::ToggleAuto);
     let reset = button("Reset").on_press(Message::Reset);
+    let center = button("Centralizar").on_press(Message::ResetView);
 
     let info = text(format!(
-        "  Próximo: {}  |  Lidos: {}/{}  |  {}",
+        "  Próximo: {}  |  Lidos: {}/{}  |  {}  |  Zoom: {:.0}%",
         next_label,
         state.simulator.config().consumed,
         state.simulator.input().len(),
-        status_label
+        status_label,
+        state.camera.zoom * 100.0
     ))
     .size(14);
 
-    row![back, step, play, reset, info]
+    row![back, step, play, reset, center, info]
         .spacing(10)
         .padding(10)
         .align_y(iced::Alignment::Center)
         .into()
 }
 
+/// Estado interno do canvas: posição do cursor durante um arrasto.
+#[derive(Debug, Default)]
+pub struct Interaction {
+    drag: Option<Point>,
+}
+
 impl canvas::Program<Message> for &State {
-    type State = ();
+    type State = Interaction;
+
+    fn update(
+        &self,
+        interaction: &mut Interaction,
+        event: &canvas::Event,
+        bounds: Rectangle,
+        cursor: mouse::Cursor,
+    ) -> Option<canvas::Action<Message>> {
+        let canvas::Event::Mouse(mouse_event) = event else {
+            return None;
+        };
+
+        match mouse_event {
+            mouse::Event::ButtonPressed(mouse::Button::Left) => {
+                let pos = cursor.position_over(bounds)?;
+                interaction.drag = Some(pos);
+                Some(canvas::Action::capture())
+            }
+            mouse::Event::CursorMoved { position } => {
+                let last = interaction.drag?;
+                interaction.drag = Some(*position);
+                let delta = *position - last;
+                Some(canvas::Action::publish(Message::Pan(delta)).and_capture())
+            }
+            mouse::Event::ButtonReleased(mouse::Button::Left) => {
+                interaction.drag.take()?;
+                Some(canvas::Action::capture())
+            }
+            mouse::Event::WheelScrolled { delta } => {
+                let pos = cursor.position_in(bounds)?;
+                let amount = match delta {
+                    mouse::ScrollDelta::Lines { y, .. } => *y,
+                    mouse::ScrollDelta::Pixels { y, .. } => *y / 60.0,
+                };
+                let factor = 1.1_f32.powf(amount);
+                Some(
+                    canvas::Action::publish(Message::Zoom {
+                        factor,
+                        anchor: pos,
+                    })
+                    .and_capture(),
+                )
+            }
+            _ => None,
+        }
+    }
+
+    fn mouse_interaction(
+        &self,
+        interaction: &Interaction,
+        bounds: Rectangle,
+        cursor: mouse::Cursor,
+    ) -> mouse::Interaction {
+        if interaction.drag.is_some() {
+            mouse::Interaction::Grabbing
+        } else if cursor.is_over(bounds) {
+            mouse::Interaction::Grab
+        } else {
+            mouse::Interaction::default()
+        }
+    }
 
     fn draw(
         &self,
-        _state: &(),
+        _interaction: &Interaction,
         renderer: &Renderer,
         _theme: &Theme,
         bounds: Rectangle,
@@ -258,9 +376,16 @@ impl canvas::Program<Message> for &State {
 
         let active = active_transitions(simulator, automaton);
 
-        draw_transitions(&mut frame, automaton, &positions, &indices, state_radius, &active);
-        draw_states(&mut frame, simulator, automaton, &positions, state_radius, bg_color);
-        draw_initial_arrow(&mut frame, &positions, &indices, automaton, state_radius);
+        // O diagrama é desenhado sob a câmera (pan + zoom); a entrada e o
+        // histórico ficam fixos na tela, como um HUD.
+        frame.with_save(|f| {
+            f.translate(self.camera.pan);
+            f.scale(self.camera.zoom);
+            draw_transitions(f, automaton, &positions, &indices, state_radius, &active);
+            draw_states(f, simulator, automaton, &positions, state_radius, bg_color);
+            draw_initial_arrow(f, &positions, &indices, automaton, state_radius);
+        });
+
         draw_input_string(&mut frame, simulator, w, h);
         draw_history(&mut frame, simulator, h);
 
@@ -277,23 +402,37 @@ fn state_indices(automaton: &Automaton) -> HashMap<String, usize> {
         .collect()
 }
 
+/// Distância mínima entre centros de estados vizinhos no círculo, deixando
+/// folga para os rótulos e as setas curvas entre as "bolinhas" (raio 40).
+const MIN_NEIGHBOR_GAP: f32 = 160.0;
+
 fn layout_states(automaton: &Automaton, w: f32, h: f32) -> Vec<Point> {
     let n = automaton.states.len();
     let cx = w / 2.0;
     let cy = h / 2.0 - 30.0;
     let usable = w.min(h - 200.0);
-    let radius = (usable * 0.32).max(90.0);
+    let fit_radius = (usable * 0.32).max(90.0);
 
     match n {
         0 => vec![],
         1 => vec![Point::new(cx, cy)],
-        2 => vec![Point::new(cx - radius, cy), Point::new(cx + radius, cy)],
-        _ => (0..n)
-            .map(|i| {
-                let angle = (i as f32) * 2.0 * PI / (n as f32) - PI / 2.0;
-                Point::new(cx + radius * angle.cos(), cy + radius * angle.sin())
-            })
-            .collect(),
+        2 => vec![
+            Point::new(cx - fit_radius, cy),
+            Point::new(cx + fit_radius, cy),
+        ],
+        _ => {
+            // A corda entre vizinhos em um círculo de raio R é 2·R·sin(π/n);
+            // para muitos estados o raio cresce além da janela e o diagrama
+            // fica navegável com o mouse (pan/zoom da câmera).
+            let needed = MIN_NEIGHBOR_GAP / (2.0 * (PI / n as f32).sin());
+            let radius = fit_radius.max(needed);
+            (0..n)
+                .map(|i| {
+                    let angle = (i as f32) * 2.0 * PI / (n as f32) - PI / 2.0;
+                    Point::new(cx + radius * angle.cos(), cy + radius * angle.sin())
+                })
+                .collect()
+        }
     }
 }
 
