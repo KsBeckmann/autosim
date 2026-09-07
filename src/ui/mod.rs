@@ -685,7 +685,7 @@ fn draw_states(
         let is_final = automaton.finals.iter().any(|f| f.value == st.value);
 
         let color = match &status {
-            Status::Done(Verdict::Rejected) => Color::from_rgb(0.9, 0.2, 0.2),
+            Status::Done(Verdict::Rejected) if is_current => Color::from_rgb(0.9, 0.2, 0.2),
             Status::Done(Verdict::Accepted) if is_current => Color::from_rgb(0.2, 0.8, 0.3),
             Status::Running if is_current => Color::from_rgb(0.3, 0.6, 1.0),
             _ => Color::from_rgb(0.3, 0.3, 0.35),
@@ -761,11 +761,7 @@ fn draw_input_string(frame: &mut canvas::Frame, simulator: &Simulator, w: f32, h
     let cfg = simulator.config();
     let consumed = cfg.consumed;
     let finished = matches!(simulator.status(), Status::Done(_));
-    let rejected_at = if cfg.current.is_empty() && consumed > 0 {
-        Some(consumed - 1)
-    } else {
-        None
-    };
+    let rejected_at = if finished { simulator.stuck_at() } else { None };
 
     let cell_w = 25.0;
     let total_w = (chars.len().max(1) as f32) * cell_w;

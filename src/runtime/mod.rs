@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 
 use crate::parser::{Automaton, Symbol};
 
@@ -28,6 +28,12 @@ pub enum NextStep {
     Done,
 }
 
+/// Configuração exibida em um instante da simulação.
+///
+/// O conjunto `current` mantém sempre um único estado, porque o simulador
+/// percorre um caminho determinado do autômato em vez da nuvem de estados
+/// simultâneos. O tipo permanece um conjunto para preservar a interface
+/// consumida pela camada de apresentação.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Configuration {
     pub current: BTreeSet<String>,
@@ -35,24 +41,65 @@ pub struct Configuration {
     pub last_step: LastStep,
 }
 
+/// Passo elementar do caminho percorrido pelo autômato.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PathStep {
+    pub from: String,
+    pub to: String,
+    /// `None` identifica uma transição ε, que não consome símbolo da entrada.
+    pub symbol: Option<char>,
+}
+
+/// Caminho único que o simulador percorre sobre o autômato.
+///
+/// Quando a cadeia pertence à linguagem, o caminho é aceitador: parte do estado
+/// inicial, consome todos os símbolos da entrada e termina em um estado final.
+/// Caso contrário, é o caminho que mais se aproxima da aceitação, segundo o
+/// critério descrito em [`best_path`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Path {
+    pub start: String,
+    pub steps: Vec<PathStep>,
+    pub accepting: bool,
+}
+
+impl Path {
+    /// Quantidade de símbolos da entrada consumidos ao longo do caminho.
+    #[must_use]
+    pub fn consumed(&self) -> usize {
+        self.steps.iter().filter(|s| s.symbol.is_some()).count()
+    }
+
+    /// Estado em que o caminho termina.
+    #[must_use]
+    pub fn last_state(&self) -> &str {
+        self.steps
+            .last()
+            .map_or(self.start.as_str(), |s| s.to.as_str())
+    }
+}
+
 pub struct Simulator {
     automaton: Automaton,
     input: Vec<char>,
+    path: Path,
     history: Vec<Configuration>,
 }
 
 impl Simulator {
     #[must_use]
     pub fn new(automaton: Automaton, input: &str) -> Self {
-        let initial = BTreeSet::from([automaton.initial.value.clone()]);
+        let input: Vec<char> = input.chars().collect();
+        let path = best_path(&automaton, &input);
         let history = vec![Configuration {
-            current: initial,
+            current: BTreeSet::from([path.start.clone()]),
             consumed: 0,
             last_step: LastStep::None,
         }];
         Self {
             automaton,
-            input: input.chars().collect(),
+            input,
+            path,
             history,
         }
     }
@@ -65,6 +112,11 @@ impl Simulator {
     #[must_use]
     pub fn input(&self) -> &[char] {
         &self.input
+    }
+
+    #[must_use]
+    pub const fn path(&self) -> &Path {
+        &self.path
     }
 
     /// Retorna a configuração atual do simulador.
@@ -101,81 +153,49 @@ impl Simulator {
 
     #[must_use]
     pub fn next_step(&self) -> NextStep {
-        let cfg = self.config();
-        if cfg.current.is_empty() {
-            return NextStep::Done;
-        }
-
-        match cfg.last_step {
-            LastStep::None | LastStep::Char(_) => {
-                if self.closure_would_expand(&cfg.current) {
-                    NextStep::Closure
-                } else if cfg.consumed < self.input.len() {
-                    NextStep::Char
-                } else {
-                    NextStep::Done
-                }
-            }
-            LastStep::Closure => {
-                if cfg.consumed < self.input.len() {
-                    NextStep::Char
-                } else {
-                    NextStep::Done
-                }
-            }
+        match self.path.steps.get(self.step_count()) {
+            None => NextStep::Done,
+            Some(step) if step.symbol.is_none() => NextStep::Closure,
+            Some(_) => NextStep::Char,
         }
     }
 
     #[must_use]
     pub fn status(&self) -> Status {
-        match self.next_step() {
-            NextStep::Done => {
-                let cfg = self.config();
-                if cfg.current.iter().any(|s| self.is_final(s)) {
-                    Status::Done(Verdict::Accepted)
-                } else {
-                    Status::Done(Verdict::Rejected)
-                }
-            }
-            _ => Status::Running,
+        if matches!(self.next_step(), NextStep::Done) {
+            Status::Done(if self.path.accepting {
+                Verdict::Accepted
+            } else {
+                Verdict::Rejected
+            })
+        } else {
+            Status::Running
         }
     }
 
+    /// Posição do símbolo em que o caminho ficou preso, quando a cadeia é
+    /// rejeitada por falta de transição disponível.
+    ///
+    /// Retorna `None` quando a cadeia é aceita ou quando ela é consumida por
+    /// inteiro sem alcançar um estado final.
+    #[must_use]
+    pub fn stuck_at(&self) -> Option<usize> {
+        let consumed = self.path.consumed();
+        (!self.path.accepting && consumed < self.input.len()).then_some(consumed)
+    }
+
     pub fn step_forward(&mut self) -> bool {
-        match self.next_step() {
-            NextStep::Done => false,
-            NextStep::Closure => {
-                let cfg = self.config().clone();
-                let closed = epsilon_closure(&self.automaton, cfg.current);
-                self.history.push(Configuration {
-                    current: closed,
-                    consumed: cfg.consumed,
-                    last_step: LastStep::Closure,
-                });
-                true
-            }
-            NextStep::Char => {
-                let cfg = self.config().clone();
-                let symbol = self.input[cfg.consumed];
-                let mut next = BTreeSet::new();
-                for state in &cfg.current {
-                    for tr in &self.automaton.transitions {
-                        if tr.from.value == *state
-                            && let Symbol::Char(c) = tr.symbol.value
-                            && c == symbol
-                        {
-                            next.insert(tr.to.value.clone());
-                        }
-                    }
-                }
-                self.history.push(Configuration {
-                    current: next,
-                    consumed: cfg.consumed + 1,
-                    last_step: LastStep::Char(symbol),
-                });
-                true
-            }
-        }
+        let Some(step) = self.path.steps.get(self.step_count()).cloned() else {
+            return false;
+        };
+        let consumed = self.config().consumed + usize::from(step.symbol.is_some());
+        let last_step = step.symbol.map_or(LastStep::Closure, LastStep::Char);
+        self.history.push(Configuration {
+            current: BTreeSet::from([step.to]),
+            consumed,
+            last_step,
+        });
+        true
     }
 
     pub fn step_back(&mut self) -> bool {
@@ -212,41 +232,136 @@ impl Simulator {
             }
         }
     }
+}
 
-    fn is_final(&self, state: &str) -> bool {
-        self.automaton.finals.iter().any(|s| s.value == state)
-    }
+fn is_final(automaton: &Automaton, state: &str) -> bool {
+    automaton.finals.iter().any(|s| s.value == state)
+}
 
-    fn closure_would_expand(&self, set: &BTreeSet<String>) -> bool {
-        for state in set {
-            for tr in &self.automaton.transitions {
-                if tr.from.value == *state
-                    && matches!(tr.symbol.value, Symbol::Epsilon)
-                    && !set.contains(&tr.to.value)
-                {
-                    return true;
+/// Nó do espaço de busca: um estado do autômato somado à quantidade de símbolos
+/// já consumidos da entrada.
+type Node = (String, usize);
+
+/// Determina o caminho que o simulador exibe.
+///
+/// A busca em largura percorre todos os pares (estado, símbolos consumidos)
+/// alcançáveis a partir do estado inicial e escolhe o melhor deles por dois
+/// critérios, nesta ordem:
+///
+/// 1. maior número de símbolos consumidos da entrada;
+/// 2. menor distância até um estado final no grafo do autômato.
+///
+/// Quando a cadeia pertence à linguagem, esses critérios elegem necessariamente
+/// um nó que consumiu a entrada inteira e repousa sobre um estado final, de modo
+/// que o caminho reconstruído é aceitador. Quando não pertence, eles elegem o
+/// caminho que chega mais longe na entrada e, entre os que empatam, o que
+/// termina mais perto de um estado final.
+///
+/// A busca em largura garante ainda que o caminho escolhido seja o mais curto
+/// entre os que levam ao nó vencedor.
+fn best_path(automaton: &Automaton, input: &[char]) -> Path {
+    let distances = distances_to_final(automaton);
+    let start = automaton.initial.value.clone();
+
+    let mut parent: HashMap<Node, (Node, Option<char>)> = HashMap::new();
+    let mut seen: HashSet<Node> = HashSet::new();
+    let mut queue: VecDeque<Node> = VecDeque::new();
+
+    let origin = (start.clone(), 0);
+    seen.insert(origin.clone());
+    queue.push_back(origin.clone());
+    let mut best = origin;
+
+    while let Some(node) = queue.pop_front() {
+        if is_better(&node, &best, &distances) {
+            best = node.clone();
+        }
+
+        let (state, consumed) = &node;
+        for tr in &automaton.transitions {
+            if tr.from.value != *state {
+                continue;
+            }
+            let advance = match tr.symbol.value {
+                Symbol::Epsilon => Some(((tr.to.value.clone(), *consumed), None)),
+                Symbol::Char(c) if *consumed < input.len() && c == input[*consumed] => {
+                    Some(((tr.to.value.clone(), consumed + 1), Some(c)))
                 }
+                Symbol::Char(_) => None,
+            };
+
+            if let Some((child, symbol)) = advance
+                && seen.insert(child.clone())
+            {
+                parent.insert(child.clone(), (node.clone(), symbol));
+                queue.push_back(child);
             }
         }
-        false
+    }
+
+    let mut steps = Vec::new();
+    let mut cursor = best.clone();
+    while let Some((previous, symbol)) = parent.get(&cursor) {
+        steps.push(PathStep {
+            from: previous.0.clone(),
+            to: cursor.0.clone(),
+            symbol: *symbol,
+        });
+        cursor = previous.clone();
+    }
+    steps.reverse();
+
+    let accepting = best.1 == input.len() && is_final(automaton, &best.0);
+    Path {
+        start,
+        steps,
+        accepting,
     }
 }
 
-fn epsilon_closure(automaton: &Automaton, mut set: BTreeSet<String>) -> BTreeSet<String> {
-    let mut changed = true;
-    while changed {
-        changed = false;
-        let snapshot: Vec<String> = set.iter().cloned().collect();
-        for state in &snapshot {
-            for tr in &automaton.transitions {
-                if tr.from.value == *state
-                    && tr.symbol.value == Symbol::Epsilon
-                    && set.insert(tr.to.value.clone())
-                {
-                    changed = true;
-                }
+/// Compara dois nós segundo os critérios documentados em [`best_path`].
+fn is_better(candidate: &Node, current: &Node, distances: &HashMap<String, usize>) -> bool {
+    if candidate.1 != current.1 {
+        return candidate.1 > current.1;
+    }
+    let reach = |state: &String| distances.get(state).copied().unwrap_or(usize::MAX);
+    reach(&candidate.0) < reach(&current.0)
+}
+
+/// Distância, em número de transições, de cada estado até o estado final mais
+/// próximo.
+///
+/// Calculada por busca em largura sobre o grafo invertido do autômato, partindo
+/// simultaneamente de todos os estados finais. Estados ausentes do resultado não
+/// alcançam nenhum estado final.
+fn distances_to_final(automaton: &Automaton) -> HashMap<String, usize> {
+    let mut incoming: HashMap<&str, Vec<&str>> = HashMap::new();
+    for tr in &automaton.transitions {
+        incoming
+            .entry(tr.to.value.as_str())
+            .or_default()
+            .push(tr.from.value.as_str());
+    }
+
+    let mut distances: HashMap<String, usize> = HashMap::new();
+    let mut queue: VecDeque<(String, usize)> = VecDeque::new();
+    for state in &automaton.finals {
+        if distances.insert(state.value.clone(), 0).is_none() {
+            queue.push_back((state.value.clone(), 0));
+        }
+    }
+
+    while let Some((state, distance)) = queue.pop_front() {
+        let Some(sources) = incoming.get(state.as_str()) else {
+            continue;
+        };
+        for source in sources {
+            if !distances.contains_key(*source) {
+                distances.insert((*source).to_string(), distance + 1);
+                queue.push_back(((*source).to_string(), distance + 1));
             }
         }
     }
-    set
+
+    distances
 }
