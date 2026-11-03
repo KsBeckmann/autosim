@@ -30,6 +30,7 @@ pub(super) fn braced_list<'a, T: 'a>(
     item: impl Parser<'a, &'a [Token], T, Err<'a>> + Clone,
 ) -> impl Parser<'a, &'a [Token], Vec<T>, Err<'a>> + Clone {
     item.separated_by(just(Token::Comma))
+        // aceita virugula no final
         .allow_trailing()
         .collect()
         .delimited_by(just(Token::BraceOpen), just(Token::BraceClose))
