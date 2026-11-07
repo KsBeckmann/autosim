@@ -231,7 +231,7 @@ fn err_nondeterministic_dfa() {
         }
     "#;
     let errors = analyse_err(input);
-    assert_any(&errors, "não-determinístico");
+    assert_any(&errors, "não determinístico");
 }
 
 #[test]

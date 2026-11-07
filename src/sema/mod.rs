@@ -225,8 +225,7 @@ fn check_dfa_determinism(
                 errors.push(
                     SemaError::new(
                         format!(
-                            "AFD '{}' não-determinístico: duas saídas de '{}'
-  com '{}'",
+                            "AFD '{}' não determinístico: duas saídas de '{}' com '{}'",
                             aut.name.value, t.from.value, c
                         ),
                         span,
