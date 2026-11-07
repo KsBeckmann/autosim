@@ -40,6 +40,16 @@ fn build_table(
 ) -> SymbolTable {
     let mut table = SymbolTable::new();
 
+    // um alfabeto é um conjunto finito e não vazio; o programa sempre começa
+    // pela declaração, então `alfabeto { }` ocupa os três primeiros tokens
+    if program.alphabet.is_empty() {
+        errors.push(SemaError::new(
+            "alfabeto vazio: declare ao menos um símbolo",
+            to_char_span(&(0..3), token_spans),
+            "alfabeto sem símbolos",
+        ));
+    }
+
     for sym in &program.alphabet {
         let span = to_char_span(&sym.span, token_spans);
         if let Some(prev) = table.alphabet.get(&sym.value) {

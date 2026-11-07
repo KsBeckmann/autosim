@@ -32,12 +32,6 @@ fn alphabet_only() {
 }
 
 #[test]
-fn empty_alphabet() {
-    let program = parse_ok("alfabeto { }");
-    assert!(program.alphabet.is_empty());
-}
-
-#[test]
 fn alphabet_trailing_comma() {
     let program = parse_ok("alfabeto { 'a', 'b', }");
     assert_eq!(chars(&program.alphabet), vec!['a', 'b']);

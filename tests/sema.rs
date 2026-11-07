@@ -89,6 +89,12 @@ fn ok_valid_simulation() {
 }
 
 #[test]
+fn err_empty_alphabet() {
+    let errors = analyse_err("alfabeto { }");
+    assert_any(&errors, "alfabeto vazio");
+}
+
+#[test]
 fn err_duplicate_alphabet_symbol() {
     let errors = analyse_err("alfabeto { 'a', 'a' }");
     assert_any(&errors, "duplicado no alfabeto");

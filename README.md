@@ -43,7 +43,7 @@ Mais exemplos em `examples/`: `afn_epsilon.asl` (a\*b\*), `grande.asl` (14 estad
 ## Como rodar
 
 ```bash
-cargo test                          # 51 testes: 12 léxico + 15 sintático + 15 semântico + 9 simulador
+cargo test                          # 51 testes: 12 léxico + 14 sintático + 16 semântico + 9 simulador
 cargo run -- --path examples/example1.asl
 cargo run -- --path examples/afn_epsilon.asl
 cargo run -- --path examples/grande.asl
@@ -64,7 +64,7 @@ Diagrama com pan (arrastar) e zoom (rodinha, 20%–400%).
 
 * `src/lexer/` — `token.rs` (11 palavras reservadas case-insensitive, `epsilon/eps`, literais, `//` comentários), erros via Ariadne
 * `src/parser/` — `grammar.rs` (EBNF: alfabeto único + `automato AFD/AFN` + `simular X com "..."`), AST com spans
-* `src/sema/` — duplicatas, referências inválidas, determinismo de AFD (sem ε, sem conflito)
+* `src/sema/` — alfabeto vazio, duplicatas, referências inválidas, determinismo de AFD (sem ε, sem conflito)
 * `src/runtime/` — BFS sobre `(estado, consumidos)`; elege maior consumo + menor distância até final; histórico bidirecional
 * `src/ui/` — canvas Iced: layout circular, transições agrupadas, entrada + histórico fixos (HUD)
 
