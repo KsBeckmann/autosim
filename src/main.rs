@@ -20,7 +20,22 @@ fn main() -> iced::Result {
     )
     .subscription(ui::subscription)
     .title("autosim")
+    .window(iced::window::Settings {
+        icon: window_icon(),
+        ..Default::default()
+    })
     .run()
+}
+
+/// Ícone exibido na barra de título e na barra de tarefas.
+fn window_icon() -> Option<iced::window::Icon> {
+    let png = include_bytes!("../assets/icon.png");
+    let pixels = image::load_from_memory_with_format(png, image::ImageFormat::Png)
+        .ok()?
+        .into_rgba8();
+    let (width, height) = pixels.dimensions();
+
+    iced::window::icon::from_rgba(pixels.into_raw(), width, height).ok()
 }
 
 /// Lê e valida o arquivo-fonte, imprimindo no stderr qualquer erro encontrado.
