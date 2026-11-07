@@ -1,0 +1,71 @@
+name: release
+
+# Publica os executáveis da Autosim em uma Release do GitHub sempre que uma
+# tag de versão (ex.: v1.0.0) é enviada. Também pode ser disparado à mão pela
+# aba Actions; nesse caso os pacotes ficam apenas como artefatos da execução.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 22.04 em vez de latest: o binário passa a exigir uma glibc mais
+          # antiga e roda em mais distribuições
+          - name: linux-x86_64
+            os: ubuntu-22.04
+            bin: autosim
+          - name: windows-x86_64
+            os: windows-latest
+            bin: autosim.exe
+          - name: macos-aarch64
+            os: macos-latest
+            bin: autosim
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Testes
+        run: cargo test --locked
+
+      - name: Compilação
+        run: cargo build --release --locked
+
+      - name: Empacotamento
+        shell: bash
+        run: |
+          dir="autosim-${{ github.ref_name }}-${{ matrix.name }}"
+          mkdir "$dir"
+          cp "target/release/${{ matrix.bin }}" README.md "$dir/"
+          cp -r examples "$dir/"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            7z a "$dir.zip" "$dir" > /dev/null
+            echo "ASSET=$dir.zip" >> "$GITHUB_ENV"
+          else
+            tar czf "$dir.tar.gz" "$dir"
+            echo "ASSET=$dir.tar.gz" >> "$GITHUB_ENV"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ env.ASSET }}
+
+      - name: Publicação na Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ASSET }}
