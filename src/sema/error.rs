@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use ariadne::{Label, Report, Source};
+use ariadne::{Config, IndexType, Label, Report, Source};
 
 #[derive(Debug, Clone)]
 pub struct SemaError {
@@ -32,6 +32,8 @@ impl SemaError {
     pub fn report(&self, file_path: &str, source: &str) {
         let (span, label) = &self.primary;
         let mut builder = Report::build(ariadne::ReportKind::Error, (file_path, span.clone()))
+            // os spans do Logos são deslocamentos em bytes, não em caracteres
+            .with_config(Config::default().with_index_type(IndexType::Byte))
             .with_message(&self.message)
             .with_label(
                 Label::new((file_path, span.clone()))

@@ -1,5 +1,5 @@
 use crate::lexer::Token;
-use ariadne::{Color, Label, Report, ReportKind, Source};
+use ariadne::{Color, Config, IndexType, Label, Report, ReportKind, Source};
 use chumsky::error::{Rich, RichPattern, RichReason};
 use std::ops::Range;
 
@@ -42,6 +42,8 @@ impl ParseError {
     /// Causa panic se o diagnóstico não puder ser escrito no stderr.
     pub fn report(&self, file_path: &str, source: &str) {
         Report::build(ReportKind::Error, (file_path, self.span.clone()))
+            // os spans do Logos são deslocamentos em bytes, não em caracteres
+            .with_config(Config::default().with_index_type(IndexType::Byte))
             .with_message(&self.message)
             .with_label(
                 Label::new((file_path, self.span.clone()))

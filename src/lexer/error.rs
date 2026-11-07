@@ -1,4 +1,4 @@
-use ariadne::{Color, Label, Report, ReportKind, Source};
+use ariadne::{Color, Config, IndexType, Label, Report, ReportKind, Source};
 use std::{error, fmt, ops};
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
@@ -16,6 +16,8 @@ impl LexError {
     pub fn report(&self, file_path: &str, source: &str) {
         let span = self.span.clone();
         Report::build(ReportKind::Error, (file_path, span.clone()))
+            // os spans do Logos são deslocamentos em bytes, não em caracteres
+            .with_config(Config::default().with_index_type(IndexType::Byte))
             .with_message(format!("token inválido `{}`", self.text))
             .with_label(
                 Label::new((file_path, span))
